@@ -1,0 +1,58 @@
+version: '2'
+volumes:
+    elasticsearch_data:
+        driver: local
+    nginx-logs:
+        driver: local
+
+services:
+  nginx:
+    container_name: elasticsearch_lb
+    image: nginx
+    network_mode: host
+    ports:
+      - 9200
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - nginx-logs:/var/log/nginx/
+
+  elasticsearch:
+    image: elasticsearch:2.3
+    network_mode: host
+    environment:
+      - ES_HEAP_SIZE=2g
+    ports:
+     - 9201
+     - 9301
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    command: "-Des.cluster.name=nginx-felk"
+  
+  logstash:
+    container_name: logstash
+    image: logstash:2.3
+    network_mode: host
+    ports:
+     - 5044
+    volumes:
+      - ./config/logstash/certs/:/etc/pki/tls/certs/
+      - ./config/logstash/private/:/etc/pki/tls/private/
+      - ./config/logstash/conf/:/etc/logstash/conf.d
+      - ./config/logstash/patterns/:/opt/logstash/patterns/
+    command: -f /etc/logstash/conf.d
+  
+  filebeat:
+    container_name: filebeat
+    build: ./filebeat
+    network_mode: host
+    volumes:
+     - nginx-logs:/var/log/nginx/
+
+  kibana:
+    container_name: kibana
+    image: kibana
+    network_mode: host
+    environment:
+      - ELASTICSEARCH_URL=http://localhost:9200
+    ports:
+      - 5601
